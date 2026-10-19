@@ -1,0 +1,26 @@
+{
+  "name": "opencode-generate-image",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Native OpenCode V2 image generation using its active ChatGPT OAuth connection",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "engines": { "bun": ">=1.3.0" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test tests/unit",
+    "test:host": "bun test tests/host",
+    "check": "bun run typecheck && bun test tests/unit && bun test tests/host"
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.25",
+    "sharp": "0.35.4",
+    "zod": "4.1.8"
+  },
+  "devDependencies": {
+    "@opencode/sdk": "2.0.25",
+    "@types/bun": "1.3.5",
+    "@types/node": "22.13.9",
+    "typescript": "5.9.3"
+  }
+}
