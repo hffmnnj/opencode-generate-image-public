@@ -2,11 +2,13 @@ import { strict as assert } from "node:assert";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isWithinOsTempDir } from "../temp-dir.ts";
 
 // Deliberately do not import the image plugin. The native config loader must
 // resolve the shipped folder, load its default entrypoint and complete setup.
 const root = process.argv[2]!;
-assert(root.startsWith("/var/tmp/") && process.env.HOME === join(root, "home"));
+assert(isWithinOsTempDir(root), "Fixture root must be inside the OS temporary directory");
+assert(process.env.HOME === join(root, "home"));
 const directory = join(root, "workspace");
 await mkdir(directory, { recursive: true });
 const packageURL = new URL("../../", import.meta.url);

@@ -1,14 +1,15 @@
 import { expect, test } from "bun:test";
-import { link, lstat, mkdir, mkdtemp, open, readFile, readdir, symlink, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, open, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
+import { createTestTempDir } from "../temp-dir.ts";
 import { ImageService } from "../../src/service.ts";
 import { imageInputSchema } from "../../src/options.ts";
 import { normalizeImage } from "../../src/images.ts";
 import { CANCELLED } from "../../src/errors.ts";
 
 const png = await sharp({ create: { width: 4, height: 3, channels: 4, background: { r: 40, g: 70, b: 200, alpha: 0.5 } } }).png().toBuffer();
-const root = () => mkdtemp("/var/tmp/generate-image-unit-");
+const root = () => createTestTempDir("unit");
 const signal = () => new AbortController().signal;
 const input = (extra: Record<string, unknown> = {}) => imageInputSchema.parse({ prompt: "A blue tile", ...extra });
 

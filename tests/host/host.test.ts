@@ -1,19 +1,23 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createTestTempDir } from "../temp-dir.ts";
 
 test.each(["injected", "session", "override", "fallback"])(
   "isolated 2.0.25 host uses %s backend/model selection, native OAuth, and permission denial",
   async mode => {
-    const root = await mkdtemp("/var/tmp/generate-image-host-");
+    const root = await createTestTempDir("host");
     try {
       const child = Bun.spawn([process.execPath, fileURLToPath(new URL("./generate-image-fixture.ts", import.meta.url)), root, mode], {
         cwd: root,
         env: {
           PATH: process.env.PATH ?? "/usr/bin:/bin",
           HOME: join(root, "home"),
+          USERPROFILE: join(root, "home"),
           TMPDIR: root,
+          TEMP: root,
+          TMP: root,
           XDG_CONFIG_HOME: join(root, "config-home"),
           XDG_DATA_HOME: join(root, "data"),
           XDG_CACHE_HOME: join(root, "cache"),
@@ -57,11 +61,12 @@ test.each(["injected", "session", "override", "fallback"])(
 );
 
 test("isolated native config loads and closes the actual file:// package folder", async () => {
-  const root = await mkdtemp("/var/tmp/generate-image-host-folder-");
+  const root = await createTestTempDir("host-folder");
   const child = Bun.spawn([process.execPath, fileURLToPath(new URL("./package-folder-fixture.ts", import.meta.url)), root], {
     cwd: root,
     env: {
-      PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: join(root, "home"), TMPDIR: root,
+      PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: join(root, "home"), USERPROFILE: join(root, "home"),
+      TMPDIR: root, TEMP: root, TMP: root,
       XDG_CONFIG_HOME: join(root, "config-home"), XDG_DATA_HOME: join(root, "data"),
       XDG_CACHE_HOME: join(root, "cache"), XDG_STATE_HOME: join(root, "state"),
       OPENCODE_CONFIG_DIR: join(root, "config"), OPENCODE_DB: join(root, "host.sqlite"),
