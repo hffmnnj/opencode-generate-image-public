@@ -3,6 +3,7 @@ import { lstat, mkdir, open, realpath, type FileHandle } from "node:fs/promises"
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { checkSignal, ImageError } from "./errors.ts";
 import { LIMITS, validRelativePath } from "./options.ts";
+import type { WindowsProjectFiles } from "./windows-files.ts";
 
 const DIRECTORY_FLAGS = constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW;
 const code = (error: unknown): string | undefined =>
@@ -17,7 +18,11 @@ const within = (root: string, path: string): boolean => {
 export class ProjectFiles {
   private constructor(readonly root: string, private readonly directory: FileHandle) {}
 
-  static async open(sessionDirectory: string, projectDirectory = sessionDirectory): Promise<ProjectFiles> {
+  static async open(sessionDirectory: string, projectDirectory = sessionDirectory): Promise<ProjectFiles | WindowsProjectFiles> {
+    if (process.platform === "win32") {
+      const { WindowsProjectFiles } = await import("./windows-files.ts");
+      return await WindowsProjectFiles.open(sessionDirectory, projectDirectory);
+    }
     if (process.platform !== "linux") throw new ImageError("Safe image file access requires Linux /proc/self/fd support.");
     if (!isAbsolute(sessionDirectory) || !isAbsolute(projectDirectory) || !within(resolve(projectDirectory), resolve(sessionDirectory)))
       throw new ImageError("Session image directory must be inside its project.");
