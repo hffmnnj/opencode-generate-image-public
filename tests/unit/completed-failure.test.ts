@@ -1,6 +1,7 @@
 import { expect, spyOn, test } from "bun:test";
-import { mkdtemp, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import sharp from "sharp";
+import { createTestTempDir } from "../temp-dir.ts";
 import { CodexImageBackend, decodeImageStream, ImageStreamDecoder } from "../../src/api.ts";
 import { ImageError } from "../../src/errors.ts";
 import { imageInputSchema } from "../../src/options.ts";
@@ -24,7 +25,7 @@ const failures = [
 for (const [field, value] of failures) {
   for (const [shape, output] of [["retained-only", []], ["final image", [item]]] as const) {
     test.each(["backend", "service"])(`%s rejects ${shape} PNG with completed ${field} without saving or exposing provider data`, async boundary => {
-      const directory = await mkdtemp("/var/tmp/generate-image-completed-failure-");
+      const directory = await createTestTempDir("completed-failure");
       const body = done + completed([...output], { [field]: value, metadata: "PRIVATE_RESPONSE_METADATA" });
       const stub = spyOn(globalThis, "fetch").mockResolvedValue(new Response(body, { headers: { "content-type": "text/event-stream" } }));
       try {

@@ -1,6 +1,7 @@
 import { expect, spyOn, test } from "bun:test";
-import { lstat, mkdtemp, readFile, readdir } from "node:fs/promises";
+import { lstat, readFile, readdir } from "node:fs/promises";
 import sharp from "sharp";
+import { createTestTempDir } from "../temp-dir.ts";
 import { CodexImageBackend } from "../../src/api.ts";
 import { CANCELLED, ImageError } from "../../src/errors.ts";
 import { imageInputSchema, LIMITS } from "../../src/options.ts";
@@ -31,7 +32,7 @@ test.each([
   ["SSE comment prefix", "text/plain", ": ready\r\n\r\n" + sse()],
   ["SSE event prefix", "application/json", "\r\nevent: response.completed\n" + sse()],
 ])("%s saves the same real PNG with validated metadata and exclusive permissions", async (_, mediaType, body) => {
-  const directory = await mkdtemp("/var/tmp/generate-image-format-");
+  const directory = await createTestTempDir("format");
   let calls = 0;
   let requestBody: unknown;
   let headers: Headers | undefined;
@@ -46,7 +47,8 @@ test.each([
     const result = await new ImageService(backend).generate(directory, input, new AbortController().signal);
     expect(await readFile(result.path)).toEqual(png);
     expect(result).toMatchObject({ mime: "image/png", width: 3, height: 2, bytes: png.length, transparent: true });
-    expect((await lstat(result.path)).mode & 0o777).toBe(0o600);
+    // Windows ACL semantics are verified separately in windows-acl.test.ts.
+    if (process.platform !== "win32") expect((await lstat(result.path)).mode & 0o777).toBe(0o600);
     expect(requestBody).toMatchObject({ model: "gpt-6-luna", stream: true, store: false, tools: [{ type: "image_generation", model: "gpt-image-2.5-sunburst", output_format: "png" }] });
     expect(headers?.get("chatgpt-account-id")).toBe("fixture-account");
     expect(headers?.get("authorization")).toBe("Bearer synthetic-access");
@@ -69,7 +71,7 @@ test.each([
   ["text/plain", "<html>private-secret</html>" + sse(), "Unexpected image response body for text/plain"],
   ["application/json", "private-secret\n" + sse(), "Unexpected image response body for application/json"],
 ])("rejects %s without exposing arbitrary headers/body or saving an image", async (mediaType, body, diagnostic) => {
-  const directory = await mkdtemp("/var/tmp/generate-image-format-");
+  const directory = await createTestTempDir("format");
   let calls = 0;
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch() {
     calls++;
@@ -244,7 +246,7 @@ test.each([
   ["classified JSON error", JSON.stringify({ ...response, error: { code: "unsupported_tool", message: "private-secret" } }), "OpenAI image request rejected: image_generation tool is unsupported; no automatic retry was attempted."],
 ])("unknown/missing labels refuse %s without saving or exposing body/header", async (_, body, diagnostic) => {
   for (const mediaType of [undefined, "application/x-private-secret"]) {
-    const directory = await mkdtemp("/var/tmp/generate-image-format-");
+    const directory = await createTestTempDir("format");
     const stub = spyOn(globalThis, "fetch").mockResolvedValue(labelledResponse(body, mediaType));
     try {
       const error = await new ImageService(new CodexImageBackend(auth)).generate(directory, input, new AbortController().signal).catch(error => error);
