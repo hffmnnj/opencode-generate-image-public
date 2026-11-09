@@ -48,7 +48,7 @@ test("saves a decoded PNG with real dimensions, alpha, exclusive mode and a file
   expect(output.bytes).toBe((await readFile(output.path)).length);
   expect((await sharp(await readFile(output.path)).metadata()).format).toBe("png");
   // Windows reports generic POSIX mode bits; its backend enforces this through an owner-only DACL.
-  if (process.platform === "linux") expect((await lstat(output.path)).mode & 0o777).toBe(0o600);
+  if (process.platform !== "win32") expect((await lstat(output.path)).mode & 0o777).toBe(0o600);
   expect(calls).toBe(1);
   await expect(service.generate(directory, input({ outputPath: "assets/new.png" }), signal())).rejects.toThrow("Output already exists");
   expect(await readFile(output.path)).toEqual(png);

@@ -97,7 +97,8 @@ test.each(["text/event-stream", "application/json", "text/plain", "application/x
       const result = await new ImageService(new CodexImageBackend(auth)).generate(directory, input, new AbortController().signal);
       expect(await readFile(result.path)).toEqual(png);
       expect(result).toMatchObject({ mime: "image/png", width: 3, height: 2, transparent: true, bytes: png.length });
-      expect((await lstat(result.path)).mode & 0o777).toBe(0o600);
+      // Windows ACL semantics are verified separately in windows-acl.test.ts.
+      if (process.platform !== "win32") expect((await lstat(result.path)).mode & 0o777).toBe(0o600);
       expect(stub).toHaveBeenCalledTimes(1);
     } finally { stub.mockRestore(); }
   },

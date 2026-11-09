@@ -47,7 +47,8 @@ test.each([
     const result = await new ImageService(backend).generate(directory, input, new AbortController().signal);
     expect(await readFile(result.path)).toEqual(png);
     expect(result).toMatchObject({ mime: "image/png", width: 3, height: 2, bytes: png.length, transparent: true });
-    expect((await lstat(result.path)).mode & 0o777).toBe(0o600);
+    // Windows ACL semantics are verified separately in windows-acl.test.ts.
+    if (process.platform !== "win32") expect((await lstat(result.path)).mode & 0o777).toBe(0o600);
     expect(requestBody).toMatchObject({ model: "gpt-6-luna", stream: true, store: false, tools: [{ type: "image_generation", model: "gpt-image-2.5-sunburst", output_format: "png" }] });
     expect(headers?.get("chatgpt-account-id")).toBe("fixture-account");
     expect(headers?.get("authorization")).toBe("Bearer synthetic-access");
