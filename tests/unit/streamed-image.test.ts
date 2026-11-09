@@ -1,6 +1,7 @@
 import { expect, spyOn, test } from "bun:test";
-import { lstat, mkdtemp, readFile, readdir } from "node:fs/promises";
+import { lstat, readFile, readdir } from "node:fs/promises";
 import sharp from "sharp";
+import { createTestTempDir } from "../temp-dir.ts";
 import { CodexImageBackend, decodeImageStream, ImageStreamDecoder } from "../../src/api.ts";
 import { ImageError } from "../../src/errors.ts";
 import { imageInputSchema, LIMITS } from "../../src/options.ts";
@@ -88,7 +89,7 @@ test("retained image result still enforces the existing image-byte limit", () =>
 
 test.each(["text/event-stream", "application/json", "text/plain", "application/x-private-secret", undefined])(
   "observed stream under %s saves the same normalized PNG with no retry", async mediaType => {
-    const directory = await mkdtemp("/var/tmp/generate-image-streamed-");
+    const directory = await createTestTempDir("streamed");
     const response = new Response(observedStream, mediaType ? { headers: { "content-type": mediaType } } : undefined);
     if (!mediaType) response.headers.delete("content-type");
     const stub = spyOn(globalThis, "fetch").mockResolvedValue(response);
@@ -96,7 +97,8 @@ test.each(["text/event-stream", "application/json", "text/plain", "application/x
       const result = await new ImageService(new CodexImageBackend(auth)).generate(directory, input, new AbortController().signal);
       expect(await readFile(result.path)).toEqual(png);
       expect(result).toMatchObject({ mime: "image/png", width: 3, height: 2, transparent: true, bytes: png.length });
-      expect((await lstat(result.path)).mode & 0o777).toBe(0o600);
+      // Windows ACL semantics are verified separately in windows-acl.test.ts.
+      if (process.platform !== "win32") expect((await lstat(result.path)).mode & 0o777).toBe(0o600);
       expect(stub).toHaveBeenCalledTimes(1);
     } finally { stub.mockRestore(); }
   },
@@ -107,7 +109,7 @@ test.each([
   ["canonical base64 which is not an image", done({ ...item, result: "YWJj" }) + completed(), "Image could not be safely decoded"],
   ["refusal after done image", done() + completed([{ type: "message", content: [{ type: "refusal", refusal: "secret" }] }]), "was refused"],
 ])("%s does not create an output file", async (_, stream, diagnostic) => {
-  const directory = await mkdtemp("/var/tmp/generate-image-streamed-");
+  const directory = await createTestTempDir("streamed");
   const stub = spyOn(globalThis, "fetch").mockResolvedValue(new Response(stream, { headers: { "content-type": "text/event-stream" } }));
   try {
     const error = await new ImageService(new CodexImageBackend(auth)).generate(directory, input, new AbortController().signal).catch(error => error);

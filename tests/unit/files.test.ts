@@ -1,16 +1,40 @@
 import { expect, test } from "bun:test";
-import { link, lstat, mkdir, mkdtemp, open, readFile, readdir, symlink, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, open, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import sharp from "sharp";
+import { createTestTempDir } from "../temp-dir.ts";
 import { ImageService } from "../../src/service.ts";
 import { imageInputSchema } from "../../src/options.ts";
 import { normalizeImage } from "../../src/images.ts";
 import { CANCELLED } from "../../src/errors.ts";
 
 const png = await sharp({ create: { width: 4, height: 3, channels: 4, background: { r: 40, g: 70, b: 200, alpha: 0.5 } } }).png().toBuffer();
-const root = () => mkdtemp("/var/tmp/generate-image-unit-");
+const root = () => createTestTempDir("unit");
+const directoryLinkType = process.platform === "win32" ? "junction" : "dir";
+const linkDirectory = (target: string, path: string) => symlink(target, path, directoryLinkType);
 const signal = () => new AbortController().signal;
 const input = (extra: Record<string, unknown> = {}) => imageInputSchema.parse({ prompt: "A blue tile", ...extra });
+
+async function detectFileSymlinkCapability(): Promise<{ supported: boolean; errorCode?: string }> {
+  if (process.platform !== "win32") return { supported: true };
+  const directory = await root();
+  const target = join(directory, "target.png");
+  await writeFile(target, png);
+  try {
+    await symlink(target, join(directory, "link.png"), "file");
+    return { supported: true };
+  } catch (error) {
+    const errorCode = error !== null && typeof error === "object" && "code" in error ? String(error.code) : undefined;
+    if (errorCode === "EPERM" || errorCode === "EACCES") return { supported: false, errorCode };
+    throw error;
+  }
+}
+
+const fileSymlinkCapability = await detectFileSymlinkCapability();
+if (!fileSymlinkCapability.supported)
+  console.info(`Skipping file-symlink-dependent tests: Windows denied a temp file symlink (${fileSymlinkCapability.errorCode}); junction and hardlink tests remain enabled.`);
+const fileSymlinkTest = test.skipIf(!fileSymlinkCapability.supported);
 
 test("saves a decoded PNG with real dimensions, alpha, exclusive mode and a file URI", async () => {
   const directory = await root();
@@ -18,12 +42,13 @@ test("saves a decoded PNG with real dimensions, alpha, exclusive mode and a file
   const service = new ImageService({ async generate() { calls++; return png; } });
   const output = await service.generate(directory, input({ outputPath: "assets/new.png" }), signal());
   expect(output.path).toBe(join(directory, "assets/new.png"));
-  expect(output.uri).toBe(`file://${directory}/assets/new.png`);
+  expect(output.uri).toBe(pathToFileURL(join(directory, "assets", "new.png")).href);
   expect(output).toMatchObject({ mime: "image/png", width: 4, height: 3, transparent: true, model: "gpt-image-2.5-sunburst", requestedSize: "1024x1024" });
   expect(output.warning).toContain("backend returned 4x3");
   expect(output.bytes).toBe((await readFile(output.path)).length);
   expect((await sharp(await readFile(output.path)).metadata()).format).toBe("png");
-  expect((await lstat(output.path)).mode & 0o777).toBe(0o600);
+  // Windows reports generic POSIX mode bits; its backend enforces this through an owner-only DACL.
+  if (process.platform !== "win32") expect((await lstat(output.path)).mode & 0o777).toBe(0o600);
   expect(calls).toBe(1);
   await expect(service.generate(directory, input({ outputPath: "assets/new.png" }), signal())).rejects.toThrow("Output already exists");
   expect(await readFile(output.path)).toEqual(png);
@@ -53,10 +78,10 @@ test.each(["/outside.png", "../outside.png", "assets/../outside.png", "assets/.p
 test("rejects symlink output parents and leaves the outside directory unchanged", async () => {
   const directory = await root();
   const outside = await root();
-  await symlink(outside, join(directory, "assets"));
+  await linkDirectory(outside, join(directory, "assets"));
   let calls = 0;
   const service = new ImageService({ async generate() { calls++; return png; } });
-  await expect(service.generate(directory, input({ outputPath: "assets/new.png" }), signal())).rejects.toThrow("symlink");
+  await expect(service.generate(directory, input({ outputPath: "assets/new.png" }), signal())).rejects.toThrow(/symlink|reparse point|changed during file access/i);
   expect(calls).toBe(0);
   expect(await readdir(outside)).toEqual([]);
 });
@@ -64,23 +89,23 @@ test("rejects symlink output parents and leaves the outside directory unchanged"
 test("revalidates output parents after the network call rather than trusting preflight checks", async () => {
   const directory = await root();
   const outside = await root();
-  const service = new ImageService({ async generate() { await symlink(outside, join(directory, "assets")); return png; } });
-  await expect(service.generate(directory, input({ outputPath: "assets/new.png" }), signal())).rejects.toThrow("symlink");
+  const service = new ImageService({ async generate() { await linkDirectory(outside, join(directory, "assets")); return png; } });
+  await expect(service.generate(directory, input({ outputPath: "assets/new.png" }), signal())).rejects.toThrow(/symlink|reparse point|changed during file access/i);
   expect(await readdir(outside)).toEqual([]);
 });
 
 test("rejects a symlink session directory and a session outside its project", async () => {
   const directory = await root();
   const outside = await root();
-  await symlink(outside, join(directory, "linked"));
+  await linkDirectory(outside, join(directory, "linked"));
   const service = new ImageService({ async generate() { throw new Error("must not generate"); } });
-  await expect(service.generate(join(directory, "linked"), input(), signal())).rejects.toThrow("symlink");
+  await expect(service.generate(join(directory, "linked"), input(), signal())).rejects.toThrow(/symlink|reparse point/i);
   await expect(service.generate(outside, input(), signal(), directory)).rejects.toThrow("inside its project");
 });
 
-test("rejects final output symlinks, including dangling links, before sending a request", async () => {
+fileSymlinkTest("rejects final output symlinks, including dangling links, before sending a request", async () => {
   const directory = await root();
-  await symlink(join(directory, "missing.png"), join(directory, "output.png"));
+  await symlink(join(directory, "missing.png"), join(directory, "output.png"), "file");
   const service = new ImageService({ async generate() { throw new Error("must not generate"); } });
   await expect(service.generate(directory, input({ outputPath: "output.png" }), signal())).rejects.toThrow("Output already exists");
   expect((await lstat(join(directory, "output.png"))).isSymbolicLink()).toBe(true);
@@ -106,15 +131,24 @@ test("normalizes PNG/JPEG/WebP references and sends no other project file", asyn
   }
 });
 
-test("rejects symlinked and hardlinked references", async () => {
+fileSymlinkTest("rejects file-symlinked references", async () => {
   const directory = await root();
   const outside = await root();
   await writeFile(join(outside, "private.png"), png);
-  await symlink(join(outside, "private.png"), join(directory, "symlink.png"));
+  await symlink(join(outside, "private.png"), join(directory, "symlink.png"), "file");
+  let calls = 0;
+  const service = new ImageService({ async generate() { calls++; return png; } });
+  await expect(service.generate(directory, input({ referenceImages: ["symlink.png"] }), signal())).rejects.toThrow(/symlink|reparse point|non-hardlinked/i);
+  expect(calls).toBe(0);
+});
+
+test("rejects hardlinked references", async () => {
+  const directory = await root();
+  const outside = await root();
+  await writeFile(join(outside, "private.png"), png);
   await link(join(outside, "private.png"), join(directory, "hardlink.png"));
   let calls = 0;
   const service = new ImageService({ async generate() { calls++; return png; } });
-  await expect(service.generate(directory, input({ referenceImages: ["symlink.png"] }), signal())).rejects.toThrow("symlink");
   await expect(service.generate(directory, input({ referenceImages: ["hardlink.png"] }), signal())).rejects.toThrow("non-hardlinked");
   expect(calls).toBe(0);
 });

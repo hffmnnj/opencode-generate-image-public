@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
 import { spyOn } from "bun:test";
+import { isWithinOsTempDir } from "../temp-dir.ts";
 // Shipped entrypoint compatibility: the host loads the real plugin code,
 // not a copy. Cover both an injected loopback backend and the production
 // default backend with its fixed URL intercepted into loopback only.
@@ -22,7 +23,8 @@ const sessionModels = sessionProvider === "openai" ? ["gpt-6.1-sol", "gpt-6.1-so
 const expectedRefreshes = sessionProvider === "openai" ? 0 : 1;
 const expectedModels = mode === "override" ? ["gpt-6.1-sol-override", "gpt-6.1-sol-override"]
   : mode === "session" ? sessionModels : ["gpt-6.1-sol", "gpt-6.1-sol"];
-assert(root.startsWith("/var/tmp/") && process.env.HOME === join(root, "home"));
+assert(isWithinOsTempDir(root), "Fixture root must be inside the OS temporary directory");
+assert(process.env.HOME === join(root, "home"));
 assert(!process.env.OPENCODE_DB || process.env.OPENCODE_DB.startsWith(root), "Host database must stay isolated");
 const directory = join(root, "workspace");
 const configDir = join(root, "config");
