@@ -25,8 +25,8 @@ function decodeFailure(stream: string): Error {
   throw new Error("Expected stream rejection, not image bytes");
 }
 
-// Independent oracle: local image CLI:593–605 returns
-// output_item.done image results without requiring them in final output.
+// An independent client implementation returns output_item.done image results
+// without requiring them in final output.
 // Coordinator's seventh native invocation confirms that exact response shape.
 test("completed image and message done events plus empty completed output return the image", () => {
   expect(decodeImageStream(observedStream)).toEqual(png);
