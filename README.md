@@ -21,6 +21,8 @@ OpenCode owns sign-in, token refresh, and credential storage. This plugin reads 
 ## Install
 
 Add this object entry to the existing `plugins` array in your OpenCode config. Keep unrelated entries unchanged.
+If upgrading from a local checkout, replace its existing entry rather than
+loading both copies.
 
 ```json
 {

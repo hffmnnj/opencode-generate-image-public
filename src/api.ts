@@ -79,10 +79,7 @@ export function validateResponsesModel(model: string): string {
 }
 
 export function imageRequest(input: ImageInput, references: readonly string[], responsesModel = DEFAULT_RESPONSES_MODEL) {
-  // Deliberately follows an earlier image client, not Codex
-  // HEAD 76ed3b484d62ccceb9fa512ff4dd139f421814c3's newer /images/generations and
-  // /images/edits protocol for gpt-image-2. Only the outer Responses model selection
-  // differs: the CLI's hardcoded gpt-5.5 was rejected by this subscription.
+  // Use the Responses image-generation tool rather than the separate /images API.
   return {
     model: validateResponsesModel(responsesModel),
     instructions: "You are an image generation assistant. Generate exactly one image.",
