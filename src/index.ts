@@ -65,6 +65,6 @@ export async function registerImages(ctx: Plugin.Context, backend?: ImageBackend
   return async () => { shutdown.abort(); await registration.dispose(); };
 }
 
-export default Plugin.define({ id: "generate-image", setup: ctx => registerImages(ctx) });
+export default Plugin.define({ id: "hffmnnj.generate-image", setup: ctx => registerImages(ctx) });
 export { CodexImageBackend, decodeImageStream, imageRequest } from "./api.ts";
 export { imageInputSchema, imageOutputSchema } from "./options.ts";
