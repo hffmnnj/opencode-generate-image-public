@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "opencode-generate-image",
+      "name": "hffmnnj.generate-image",
       "dependencies": {
         "@opencode/plugin": "2.0.25",
         "sharp": "0.35.4",

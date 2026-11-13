@@ -27,10 +27,10 @@ try {
   // Inventory alone is passive; a normal location API initializes its registry.
   await host.integration.list({ location: { directory } });
   const plugins = await host.plugin.list({ location: { directory } });
-  const image = plugins.data.filter(plugin => plugin.id === "generate-image");
+  const image = plugins.data.filter(plugin => plugin.id === "hffmnnj.generate-image");
   assert.equal(image.length, 1, "Config must load exactly one shipped image plugin");
   assert.deepEqual(image[0]!.state, { status: "active" }, "Default plugin setup must complete");
   assert.deepEqual(image[0]!.source, { type: "local", path: fileURLToPath(new URL("index.ts", packageURL)) });
-  assert.equal((await host.plugin.list({ location: { directory } })).data.filter(plugin => plugin.id === "generate-image").length, 1);
+  assert.equal((await host.plugin.list({ location: { directory } })).data.filter(plugin => plugin.id === "hffmnnj.generate-image").length, 1);
 } finally { await host.close(); }
 console.log(JSON.stringify({ status: "generate-image-package-folder-verified", closed: true }));
