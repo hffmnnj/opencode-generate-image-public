@@ -68,7 +68,7 @@ return await tools.generate_image({
 });
 ```
 
-Only the prompt and the listed reference images are sent. Session history is not included. The tool writes one new PNG inside the session project and returns its path, `file://` URI, actual dimensions, byte size, and `image/png` file content. It never overwrites an existing file.
+Only the prompt and the listed reference images are sent. Session history is not included. The tool writes one new PNG inside the session project and returns its path, `file://` URI, actual dimensions, byte size, and one inline `image/png` attachment for chat. It never overwrites an existing file.
 
 ## Parameters
 
@@ -96,6 +96,8 @@ Set `responsesModel` in plugin options, not in `tools.generate_image` input. A s
 ## Output
 
 The result contains `path`, `uri`, `model`, `quality`, `requestedSize`, `action`, `mime: "image/png"`, actual `width`, `height`, `bytes`, and `transparent` (whether the returned PNG has alpha). If the backend resolves to a different size than requested, `warning` says so and the actual resolution is preserved.
+
+The PNG is delivered once as native file content, using the same validated bytes saved on disk. Structured output contains metadata only, never image bytes or a base64 string. Code Mode forwards the attachment separately, so callers should return the result as shown above rather than read and attach the saved image again. Clients that render native image attachments can display it directly in chat. This is one multimodal image, not zero image-token usage; it is not a display-only attachment.
 
 There is no `transparent` input and no chroma-key or green-screen processing. Alpha is preserved when the provider returns it, but it cannot be requested.
 
