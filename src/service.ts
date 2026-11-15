@@ -10,6 +10,10 @@ export class ImageService {
   constructor(private readonly backend: ImageBackend) {}
 
   async generate(root: string, rawInput: ImageInput, signal: AbortSignal, projectDirectory = root): Promise<ImageOutput> {
+    return (await this.generateWithImage(root, rawInput, signal, projectDirectory)).output;
+  }
+
+  async generateWithImage(root: string, rawInput: ImageInput, signal: AbortSignal, projectDirectory = root): Promise<{ output: ImageOutput; png: Buffer }> {
     const parsed = imageInputSchema.safeParse(rawInput);
     if (!parsed.success) throw new ImageError("Invalid image input. Check prompt, model, quality, size, action and project-relative image paths.");
     const input = parsed.data;
@@ -39,13 +43,14 @@ export class ImageService {
       const image = await normalizeImage(generated, false, signal);
       checkSignal(signal);
       await files.save(outputName, image.png, signal);
-      return {
+      const output: ImageOutput = {
         path, uri: pathToFileURL(path).href, model: input.model, quality: input.quality, requestedSize: input.size,
         action: input.action, mime: "image/png", width: image.width, height: image.height,
         bytes: image.png.length, transparent: image.transparent,
         ...(input.size !== "auto" && input.size !== `${image.width}x${image.height}`
           ? { warning: `Requested ${input.size}; backend returned ${image.width}x${image.height}. Actual resolution preserved.` } : {}),
       };
+      return { output, png: image.png };
     } finally { await files.close(); }
   }
 }

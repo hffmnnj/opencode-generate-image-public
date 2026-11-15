@@ -53,10 +53,10 @@ export async function registerImages(ctx: Plugin.Context, backend?: ImageBackend
             { resolve: () => resolveImageCredential(ctx) }, undefined,
             parsed.data.responsesModel ?? (session.model?.providerID === "openai" ? session.model.id : DEFAULT_RESPONSES_MODEL),
           ));
-          const output = await invocationService.generate(session.location.directory, input, signal, ctx.location.project.directory);
+          const { output, png } = await invocationService.generateWithImage(session.location.directory, input, signal, ctx.location.project.directory);
           return { output, content: [
-            { type: "text", text: JSON.stringify(output) },
-            { type: "file", uri: output.uri, mime: "image/png" },
+            // Code Mode forwards native files separately from metadata-only output.
+            { type: "file", uri: `data:image/png;base64,${png.toString("base64")}`, mime: "image/png" },
           ] };
         } catch (error) { throw new ToolError({ message: safeMessage(error) }); }
       },

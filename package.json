@@ -1,6 +1,6 @@
 {
   "name": "hffmnnj.generate-image",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Native OpenCode V2 image generation using its active ChatGPT OAuth connection",
   "type": "module",
   "exports": { ".": "./src/index.ts" },
